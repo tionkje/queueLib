@@ -90,7 +90,7 @@ export class Manager{
   _producers = [];
   _nextId = 0;
 
-  get producers(){ return this._producers.slice(); }
+  get producers(){ return this._producers.slice().sort((a,b)=>a.id-b.id); }
 
   createProducer(){
     const p = new Producer(this, ++this._nextId);
@@ -112,6 +112,7 @@ export class Manager{
     this._producers.sort((a,b)=>{
       if(!!b._paused         != !!a._paused)         return !!b.paused          - !!a._paused;
       if(!!a._actionQueue[0] != !!b._actionQueue[0]) return !!a._actionQueue[0] - !!b._actionQueue[0];
+      if(!a._actionQueue[0] && !b._actionQueue[0]) return 0;
       return a._actionQueue[0]._time - b._actionQueue[0]._time;
     });
     // console.log(this._producers);
