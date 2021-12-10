@@ -4,9 +4,9 @@ import { Manager, ProduceAction } from './qdir.js';
 function createQueueChain(dir, len=3){
   let prev;
   return [...Array(len)].map((x,i)=>{
-    if(i==0) return prev = dir.createProducer();
-    return prev = prev.enque(newP=>new ProduceAction(1, newP));
-  },dir.createProducer());
+    if(i==0) return prev = dir.createUnpausedProducer();
+    return prev = prev.enqueueProduceAction(1);
+  });
 }
 
 describe('queueus',()=>{
@@ -16,9 +16,9 @@ describe('queueus',()=>{
   describe('queue chain',()=>{
     it('queue a producer',()=>{
       expect(dir.producers.length).toBe(0);
-      const p1 = dir.createProducer();
+      const p1 = dir.createUnpausedProducer();
       expect(dir.producers.length).toBe(1);
-      const p2 = p1.enque(newP=>new ProduceAction(1, newP));
+      const p2 = p1.enqueueProduceAction(1);
       expect(dir.producers.length).toBe(2);
       expect(p2.paused).toBe(true);
       dir.evaluate(1);

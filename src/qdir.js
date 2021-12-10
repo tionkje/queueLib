@@ -3,24 +3,26 @@ class Action {
   _finished = false;
   _started = false;
   get started(){return this._started;}
-  _producer;
-  constructor(producer){
-    this._producer = producer;
+  _executor;
+  get executor(){return this._executor;}
+  constructor(executor){
+    this._executor = executor;
   }
 }
 export class ProduceAction extends Action {
   _time;
-  _result;
+  _producing;
 
   get timeLeft(){ return this._time; }
   get totalTime(){ return this._totalTime; }
-  get produceId(){ return this._result.id; }
+  get produceId(){ return this._producing.id; }
+  get producing(){ return this._producing; }
 
-  constructor(time, result){
-    super();
+  constructor(producer, time, result){
+    super(producer);
     this._totalTime = time;
     this._time = time;
-    this._result = result;
+    this._producing = result;
   }
 
   evaluate(dt){
@@ -33,8 +35,8 @@ export class ProduceAction extends Action {
       dt -= this._time;
       this._time = 0;
       this._finished = true;
-      this._result._paused = false;
-      dt = this._result.evaluate(dt);
+      this._producing._paused = false;
+      dt = this._producing.evaluate(dt);
     }
     return dt;
   }
@@ -56,12 +58,13 @@ class Producer {
     this.id = id;
   }
 
-  enque(newAction){
-    const p = new Producer(this._dir, ++this._dir._nextId);
-    this._dir._producers.push(p);
+  enqueueProduceAction(time){
+    const p = this._dir.createProducer();
 
-    const a = newAction(p)
+    const a = new ProduceAction(this, time, p);
     this.pushAction(a);
+
+    p.produceAction = a;
 
     return p;
   }
@@ -72,7 +75,7 @@ class Producer {
   }
 
   cancelAction(a){
-    this._dir.removeProducer(a._result);
+    this._dir.removeProducer(a.producing);
     const idx = this._actionQueue.indexOf(a);
     if(idx<0) return console.error(`Producer.cancelAction: action not found`, p);
     this._actionQueue.splice(idx, 1);
@@ -101,12 +104,15 @@ export class Manager{
 
   get producers(){ return this._producers.slice().sort((a,b)=>a.id-b.id); }
 
-  createProducer(){
+  createUnpausedProducer(){
+    return this.createProducer(false);
+  }
+  createProducer(paused=true){
     const p = new Producer(this, ++this._nextId);
-    p._paused = false;
 
     this._producers.push(p);
 
+    p._paused = paused;
     return p;
   }
 
