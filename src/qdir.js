@@ -1,10 +1,16 @@
 const assert = (pred,msg='Assertion Failed')=>{ if(!pred) { console.error(msg); debugger; throw new Error(msg); } }
 class Action { 
   _finished = false;
+  get finished(){return this._finished;}
+
   _started = false;
   get started(){return this._started;}
+
   _executor;
   get executor(){return this._executor;}
+
+  get type(){throw new Error('Not implemented')}
+
   constructor(executor){
     this._executor = executor;
   }
@@ -15,8 +21,8 @@ export class ProduceAction extends Action {
 
   get timeLeft(){ return this._time; }
   get totalTime(){ return this._totalTime; }
-  get produceId(){ return this._producing.id; }
   get producing(){ return this._producing; }
+  get type(){return 'ProduceAction'}
 
   constructor(producer, time, result){
     super(producer);
@@ -88,12 +94,12 @@ class Producer {
       // console.log(this._actionQueue);
       head = this.head;
       if(!head) break;
-      if(head._finished) {
+      if(head.finished) {
         this._actionQueue.shift();
         continue;
       }
       dt = head.evaluate(dt);
-    } while(dt>0 || head._finished)
+    } while(dt>0 || head.finished)
     return dt;
   }
 }
