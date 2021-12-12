@@ -5,33 +5,36 @@ const assert = (pred, msg = 'Assertion Failed') => {
     throw new Error(msg);
   }
 };
+
 class Action {
   _finished = false;
+  _started = false;
+
   get finished() {
     return this._finished;
   }
-
-  _started = false;
   get started() {
     return this._started;
   }
-
-  _executor;
-  get executor() {
-    return this._executor;
-  }
-
   get type() {
     throw new Error('Not implemented');
   }
 
-  constructor(executor) {
-    this._executor = executor;
+  toJSON() {
+    const result = Object.assign({}, this);
+    result.type = this.type;
+    return result;
+  }
+  revive(src) {
+    this._started = src._started;
+    this._finished = src._finished;
   }
 }
+
 export class ProduceAction extends Action {
   _time;
   _producing;
+  _totalTime;
 
   get timeLeft() {
     return this._time;
@@ -68,13 +71,26 @@ export class ProduceAction extends Action {
     }
     return dt;
   }
+
+  toJSON() {
+    const result = super.toJSON();
+    result._producing = result._producing.id;
+    return result;
+  }
+  revive(src) {
+    super.revive(src);
+    this._time = src._time;
+    this._totalTime = src._totalTime;
+    this._producing.produceAction = this;
+  }
 }
 
 class Producer {
   _dir;
   _paused = true;
   _actionQueue = [];
-  id;
+  _id;
+  produceAction; // action that created this Producer
 
   get paused() {
     return this._paused;
@@ -85,10 +101,13 @@ class Producer {
   get actionQueue() {
     return this._actionQueue.slice();
   }
+  get id() {
+    return this._id;
+  }
 
   constructor(dir, id) {
     this._dir = dir;
-    this.id = id;
+    this._id = id;
   }
 
   enqueueProduceAction(time) {
@@ -116,6 +135,7 @@ class Producer {
 
   evaluate(dt) {
     if (this._paused) return;
+    delete this.produceAction;
     let head;
     do {
       // console.log(this._actionQueue);
@@ -128,6 +148,26 @@ class Producer {
       dt = head.evaluate(dt);
     } while (dt > 0 || head.finished);
     return dt;
+  }
+
+  toJSON() {
+    const result = Object.assign({}, this);
+    delete result._dir;
+    delete result.produceAction;
+    return result;
+  }
+  revive(src) {
+    this._paused = src._paused;
+    this._actionQueue = src._actionQueue.map((a) => {
+      const producing = this._dir.producers.find((p) => p.id == a._producing);
+      switch (a.type) {
+        case 'ProduceAction':
+          const pa = new ProduceAction(this, a._time, producing);
+          pa.revive(a);
+          return pa;
+      }
+      throw new Error('Invalid revive');
+    });
   }
 }
 
@@ -165,7 +205,17 @@ export class Manager {
       if (!a._actionQueue[0] && !b._actionQueue[0]) return 0;
       return a._actionQueue[0]._time - b._actionQueue[0]._time;
     });
-    // console.log(this._producers);
     this._producers.forEach((p) => p.evaluate(dt));
+  }
+
+  toJSON() {
+    return this;
+  }
+  static revive(src) {
+    const result = new Manager();
+    result._nextId = src._nextId;
+    result._producers = src._producers.map((p) => new Producer(result, p._id));
+    result._producers.forEach((p, i) => p.revive(src._producers[i]));
+    return result;
   }
 }

@@ -50,4 +50,15 @@ describe('queueus', () => {
       expect(p3.paused).toBe(true);
     });
   });
+
+  describe('serialisation', () => {
+    let dir;
+    beforeEach(() => (dir = new Manager()));
+
+    it('can serialise', () => {
+      createQueueChain(dir, 5);
+      dir.evaluate(1.5);
+      expect(Manager.revive(JSON.parse(JSON.stringify(dir)))).toEqual(dir);
+    });
+  });
 });
