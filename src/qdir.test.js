@@ -1,4 +1,4 @@
-import { Manager, ProduceAction } from "./qdir.js";
+import { Manager, ProduceAction } from './qdir.js';
 
 // chain of queues where each producer creates the next one
 function createQueueChain(dir, len = 3) {
@@ -9,12 +9,12 @@ function createQueueChain(dir, len = 3) {
   });
 }
 
-describe("queueus", () => {
+describe('queueus', () => {
   let dir;
   beforeEach(() => (dir = new Manager()));
 
-  describe("queue chain", () => {
-    it("queue a producer", () => {
+  describe('queue chain', () => {
+    it('queue a producer', () => {
       expect(dir.producers.length).toBe(0);
       const p1 = dir.createUnpausedProducer();
       expect(dir.producers.length).toBe(1);
@@ -25,7 +25,7 @@ describe("queueus", () => {
       expect(p2.paused).toBe(false);
     });
 
-    it("stay paused when not produced yet", () => {
+    it('stay paused when not produced yet', () => {
       const [p1, p2, p3] = createQueueChain(dir, 3);
       dir.evaluate(1);
       expect(p1.paused).toBe(false);
@@ -33,7 +33,7 @@ describe("queueus", () => {
       expect(p3.paused).toBe(true);
     });
 
-    it("start the next in the queue", () => {
+    it('start the next in the queue', () => {
       const [p1, p2, p3] = createQueueChain(dir, 3);
       dir.evaluate(2);
       expect(p1.paused).toBe(false);
@@ -41,7 +41,7 @@ describe("queueus", () => {
       expect(p3.paused).toBe(false);
     });
 
-    it("continues next for the time that is left", () => {
+    it('continues next for the time that is left', () => {
       const [p1, p2, p3] = createQueueChain(dir, 3);
       dir.evaluate(1.5);
       expect(p1.paused).toBe(false);

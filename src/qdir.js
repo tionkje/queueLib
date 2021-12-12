@@ -1,4 +1,4 @@
-const assert = (pred, msg = "Assertion Failed") => {
+const assert = (pred, msg = 'Assertion Failed') => {
   if (!pred) {
     console.error(msg);
     debugger;
@@ -22,7 +22,7 @@ class Action {
   }
 
   get type() {
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
   }
 
   constructor(executor) {
@@ -43,7 +43,7 @@ export class ProduceAction extends Action {
     return this._producing;
   }
   get type() {
-    return "ProduceAction";
+    return 'ProduceAction';
   }
 
   constructor(producer, time, result) {
@@ -103,15 +103,14 @@ class Producer {
   }
 
   pushAction(a) {
-    assert(a instanceof Action, "action should be of type Action");
+    assert(a instanceof Action, 'action should be of type Action');
     this._actionQueue.push(a);
   }
 
   cancelAction(a) {
     this._dir.removeProducer(a.producing);
     const idx = this._actionQueue.indexOf(a);
-    if (idx < 0)
-      return console.error(`Producer.cancelAction: action not found`, p);
+    if (idx < 0) return console.error(`Producer.cancelAction: action not found`, p);
     this._actionQueue.splice(idx, 1);
   }
 
@@ -155,16 +154,14 @@ export class Manager {
   removeProducer(p) {
     p.actionQueue.forEach((a) => p.cancelAction(a));
     const idx = this._producers.indexOf(p);
-    if (idx < 0)
-      return console.error(`Manager.removeProducer: producer not found`, p);
+    if (idx < 0) return console.error(`Manager.removeProducer: producer not found`, p);
     this._producers.splice(idx, 1);
   }
 
   evaluate(dt) {
     this._producers.sort((a, b) => {
       if (!!b._paused != !!a._paused) return !!b.paused - !!a._paused;
-      if (!!a._actionQueue[0] != !!b._actionQueue[0])
-        return !!a._actionQueue[0] - !!b._actionQueue[0];
+      if (!!a._actionQueue[0] != !!b._actionQueue[0]) return !!a._actionQueue[0] - !!b._actionQueue[0];
       if (!a._actionQueue[0] && !b._actionQueue[0]) return 0;
       return a._actionQueue[0]._time - b._actionQueue[0]._time;
     });
