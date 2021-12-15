@@ -58,10 +58,16 @@ class LockAction extends Action {
   }
   evaluate(dt) {
     if (this._finished) return dt;
-    if (dt > 0) this._started = true;
+    this._started = true;
     if (this._predicate()) return 0;
     this._finished = true;
     return dt;
+  }
+  toJSON() {
+    throw new Error('Not Implemented');
+  }
+  revive() {
+    throw new Error('Not Implemented');
   }
 }
 
@@ -89,7 +95,7 @@ class WaitAction extends Action {
 
   evaluate(dt) {
     if (this._finished) return dt;
-    if (dt > 0) this._started = true;
+    this._started = true;
     if (this._time > dt) {
       this._time -= dt;
       dt = 0;
@@ -97,7 +103,8 @@ class WaitAction extends Action {
       dt -= this._time;
       this._time = 0;
       this._finished = true;
-      dt = this._onDone(dt);
+      const res = this._onDone(dt);
+      if (typeof res == 'number') dt = res;
     }
     return dt;
   }
@@ -128,6 +135,7 @@ class ProduceAction extends WaitAction {
       return this._producing.evaluate(dt);
     });
     this._producing = producing;
+    this._producing.produceAction = this;
   }
 
   toJSON() {
@@ -138,6 +146,36 @@ class ProduceAction extends WaitAction {
   revive(src) {
     super.revive(src);
     this._producing.produceAction = this;
+  }
+}
+
+class CompoundAction extends Action {
+  _actions;
+
+  get actions() {
+    return this._actions.slice();
+  }
+  get type() {
+    return 'CompoundAction';
+  }
+  constructor(producer, actions) {
+    super(producer);
+    this._actions = actions;
+  }
+  evaluate(dt) {
+    if (this._finished) return dt;
+    this._started = true;
+
+    dt = evaluateActions(dt, this._actions);
+    if (this._actions.length == 0) this._finished = true;
+    return dt;
+  }
+
+  toJSON() {
+    throw new Error('Not Implemented');
+  }
+  revive() {
+    throw new Error('Not Implemented');
   }
 }
 
@@ -167,24 +205,31 @@ class Producer {
   }
 
   enqueueProduceAction(time) {
-    const p = this._dir.createProducer();
-
-    const a = new ProduceAction(this, time, p);
-    this.pushAction(a);
-
-    p.produceAction = a;
-
-    return a;
+    return this.enqueueAction('ProduceAction', time);
   }
-
   enqueueWaitAction(time, done) {
-    const a = new WaitAction(this, time, done);
-    this.pushAction(a);
-    return a;
+    return this.enqueueAction('WaitAction', time, done);
+  }
+  enqueueLockAction(pred) {
+    return this.enqueueAction('LockAction', pred);
   }
 
-  enqueueLockAction(pred) {
-    const a = new LockAction(this, pred);
+  _createAction(type, ...args) {
+    switch (type) {
+      case 'ProduceAction':
+        return new ProduceAction(this, ...args, this._dir.createProducer());
+      case 'WaitAction':
+        return new WaitAction(this, ...args);
+      case 'LockAction':
+        return new LockAction(this, ...args);
+      case 'CompoundAction':
+        return new CompoundAction(this, ...args);
+      default:
+        throw new Error(`Unknown type ${type}`);
+    }
+  }
+  enqueueAction(type, ...args) {
+    const a = this._createAction(type, ...args);
     this.pushAction(a);
     return a;
   }
@@ -205,20 +250,8 @@ class Producer {
     if (this._paused) return;
     // delete this.produceAction;
     this.produceAction = undefined;
-    let head;
-    let maxIter = 200;
-    do {
-      // console.log(this._actionQueue);
-      head = this.head;
-      if (!head) break;
-      if (head.finished) {
-        this._actionQueue.shift();
-        continue;
-      }
-      dt = head.evaluate(dt);
-    } while ((dt > 0 || head.finished) && --maxIter);
-    if (maxIter == 0) throw new Error('max iters');
-    return dt;
+
+    return evaluateActions(dt, this._actionQueue);
   }
 
   toJSON() {
@@ -240,6 +273,22 @@ class Producer {
       throw new Error('Invalid revive');
     });
   }
+}
+
+function evaluateActions(dt, actions) {
+  let head;
+  let maxIter = 200;
+  do {
+    head = actions[0];
+    if (!head) break;
+    if (head.finished) {
+      actions.shift();
+      continue;
+    }
+    dt = head.evaluate(dt);
+  } while ((dt > 0 || head.finished) && --maxIter);
+  if (maxIter == 0) throw new Error('max iters');
+  return dt;
 }
 
 export class Manager {

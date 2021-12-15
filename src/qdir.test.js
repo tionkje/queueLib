@@ -81,4 +81,18 @@ describe('queueus', () => {
     p.evaluate(1);
     expect(done).toBe(true);
   });
+  it('has compound actions', () => {
+    const p = dir.createUnpausedProducer();
+    let locked = true,
+      done = false;
+    p.enqueueAction('CompoundAction', [
+      p._createAction('LockAction', () => locked),
+      p._createAction('WaitAction', 1, () => (done = true))
+    ]);
+    p.evaluate(10);
+    expect(done).toBe(false);
+    locked = false;
+    p.evaluate(2);
+    expect(done).toBe(true);
+  });
 });
