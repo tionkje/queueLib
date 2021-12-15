@@ -224,6 +224,12 @@ class Producer {
         return new LockAction(this, ...args);
       case 'CompoundAction':
         return new CompoundAction(this, ...args);
+      case 'PredProduceAction':
+        const [pred, time] = args;
+        return new CompoundAction(this, [
+          new LockAction(this, pred),
+          new ProduceAction(this, time, this._dir.createProducer())
+        ]);
       default:
         throw new Error(`Unknown type ${type}`);
     }

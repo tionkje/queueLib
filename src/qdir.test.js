@@ -59,28 +59,19 @@ describe('queueus', () => {
     expect(JSON.stringify(copy, 0, 2)).toStrictEqual(JSON.stringify(dir, 0, 2));
   });
 
-  it.skip('create wait action', () => {
-    console.log(jest);
-    const fn = jest.fn();
-    const p = dir.createUnpausedProducer();
-    p.enqueueWaitAction(1, fn);
-    expect(fn).not.toHaveBeenCalled();
-    dir.evaluate(1);
-    expect(fn).toHaveBeenCalled();
-  });
-
   it('has lockaction', () => {
     const p = dir.createUnpausedProducer();
     let locked = true;
     let done = false;
     p.enqueueLockAction(() => locked);
     p.enqueueWaitAction(1, () => (done = true));
-    p.evaluate(1);
+    dir.evaluate(1);
     expect(done).toBe(false);
     locked = false;
-    p.evaluate(1);
+    dir.evaluate(1);
     expect(done).toBe(true);
   });
+
   it('has compound actions', () => {
     const p = dir.createUnpausedProducer();
     let locked = true,
@@ -89,10 +80,21 @@ describe('queueus', () => {
       p._createAction('LockAction', () => locked),
       p._createAction('WaitAction', 1, () => (done = true))
     ]);
-    p.evaluate(10);
+    dir.evaluate(10);
     expect(done).toBe(false);
     locked = false;
-    p.evaluate(2);
+    dir.evaluate(2);
     expect(done).toBe(true);
+  });
+
+  it('preproduce action', () => {
+    const p = dir.createUnpausedProducer();
+    let locked = true;
+    p.enqueueAction('PredProduceAction', () => locked, 1);
+    dir.evaluate(2);
+    expect(dir.producers.filter((p) => !p._paused).length).toBe(1);
+    locked = false;
+    dir.evaluate(2);
+    expect(dir.producers.filter((p) => !p._paused).length).toBe(2);
   });
 });
