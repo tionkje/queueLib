@@ -9,7 +9,15 @@ const assert = (pred, msg = 'Assertion Failed') => {
 class Action {
   _finished = false;
   _started = false;
+  _producer;
 
+  constructor(producer) {
+    this._producer = producer;
+  }
+
+  get producer() {
+    return this._producer;
+  }
   get finished() {
     return this._finished;
   }
@@ -20,9 +28,14 @@ class Action {
     throw new Error('Not implemented');
   }
 
+  evaluate() {
+    throw new Error('Not implemented');
+  }
+
   toJSON() {
     const result = Object.assign({}, this);
     result.type = this.type;
+    delete result._producer;
     return result;
   }
   revive(src) {
@@ -31,10 +44,10 @@ class Action {
   }
 }
 
-export class ProduceAction extends Action {
+class WaitAction extends Action {
   _time;
-  _producing;
   _totalTime;
+  _onDone;
 
   get timeLeft() {
     return this._time;
@@ -42,18 +55,15 @@ export class ProduceAction extends Action {
   get totalTime() {
     return this._totalTime;
   }
-  get producing() {
-    return this._producing;
-  }
   get type() {
-    return 'ProduceAction';
+    return 'WaitAction';
   }
 
-  constructor(producer, time, result) {
+  constructor(producer, time, onDone) {
     super(producer);
+    this._onDone = onDone;
     this._totalTime = time;
     this._time = time;
-    this._producing = result;
   }
 
   evaluate(dt) {
@@ -66,10 +76,37 @@ export class ProduceAction extends Action {
       dt -= this._time;
       this._time = 0;
       this._finished = true;
-      this._producing._paused = false;
-      dt = this._producing.evaluate(dt);
+      dt = this._onDone(dt);
     }
     return dt;
+  }
+  toJSON() {
+    const result = super.toJSON();
+    return result;
+  }
+  revive(src) {
+    super.revive(src);
+    this._time = src._time;
+    this._totalTime = src._totalTime;
+  }
+}
+
+class ProduceAction extends WaitAction {
+  _producing;
+
+  get producing() {
+    return this._producing;
+  }
+  get type() {
+    return 'ProduceAction';
+  }
+
+  constructor(producer, time, producing) {
+    super(producer, time, (dt) => {
+      this._producing._paused = false;
+      return this._producing.evaluate(dt);
+    });
+    this._producing = producing;
   }
 
   toJSON() {
@@ -79,8 +116,6 @@ export class ProduceAction extends Action {
   }
   revive(src) {
     super.revive(src);
-    this._time = src._time;
-    this._totalTime = src._totalTime;
     this._producing.produceAction = this;
   }
 }
@@ -118,7 +153,13 @@ class Producer {
 
     p.produceAction = a;
 
-    return p;
+    return a;
+  }
+
+  enqueueWaitAction(time, done) {
+    const a = new WaitAction(this, time, done);
+    this.pushAction(a);
+    return a;
   }
 
   pushAction(a) {
@@ -135,7 +176,8 @@ class Producer {
 
   evaluate(dt) {
     if (this._paused) return;
-    delete this.produceAction;
+    // delete this.produceAction;
+    this.produceAction = undefined;
     let head;
     do {
       // console.log(this._actionQueue);

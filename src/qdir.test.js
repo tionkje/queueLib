@@ -1,11 +1,11 @@
-import { Manager, ProduceAction } from './qdir.js';
+import { Manager } from './qdir.js';
 
 // chain of queues where each producer creates the next one
 function createQueueChain(dir, len = 3) {
   let prev;
   return [...Array(len)].map((x, i) => {
     if (i == 0) return (prev = dir.createUnpausedProducer());
-    return (prev = prev.enqueueProduceAction(1));
+    return (prev = prev.enqueueProduceAction(1).producing);
   });
 }
 
@@ -18,7 +18,7 @@ describe('queueus', () => {
       expect(dir.producers.length).toBe(0);
       const p1 = dir.createUnpausedProducer();
       expect(dir.producers.length).toBe(1);
-      const p2 = p1.enqueueProduceAction(1);
+      const p2 = p1.enqueueProduceAction(1).producing;
       expect(dir.producers.length).toBe(2);
       expect(p2.paused).toBe(true);
       dir.evaluate(1);
@@ -51,14 +51,10 @@ describe('queueus', () => {
     });
   });
 
-  describe('serialisation', () => {
-    let dir;
-    beforeEach(() => (dir = new Manager()));
-
-    it('can serialise', () => {
-      createQueueChain(dir, 5);
-      dir.evaluate(1.5);
-      expect(Manager.revive(JSON.parse(JSON.stringify(dir)))).toEqual(dir);
-    });
+  it('can serialise', () => {
+    createQueueChain(dir, 3);
+    dir.evaluate(1.5);
+    const copy = Manager.revive(JSON.parse(JSON.stringify(dir)));
+    expect(JSON.stringify(copy, 0, 2)).toStrictEqual(JSON.stringify(dir, 0, 2));
   });
 });
