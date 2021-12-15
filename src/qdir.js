@@ -44,6 +44,27 @@ class Action {
   }
 }
 
+class LockAction extends Action {
+  _predicate;
+  get locked() {
+    return this._predicate();
+  }
+  get type() {
+    return 'LockAction';
+  }
+  constructor(producer, pred) {
+    super(producer);
+    this._predicate = pred;
+  }
+  evaluate(dt) {
+    if (this._finished) return dt;
+    if (dt > 0) this._started = true;
+    if (this._predicate()) return 0;
+    this._finished = true;
+    return dt;
+  }
+}
+
 class WaitAction extends Action {
   _time;
   _totalTime;
@@ -67,7 +88,7 @@ class WaitAction extends Action {
   }
 
   evaluate(dt) {
-    if (this._finished) return;
+    if (this._finished) return dt;
     if (dt > 0) this._started = true;
     if (this._time > dt) {
       this._time -= dt;
@@ -162,6 +183,12 @@ class Producer {
     return a;
   }
 
+  enqueueLockAction(pred) {
+    const a = new LockAction(this, pred);
+    this.pushAction(a);
+    return a;
+  }
+
   pushAction(a) {
     assert(a instanceof Action, 'action should be of type Action');
     this._actionQueue.push(a);
@@ -179,6 +206,7 @@ class Producer {
     // delete this.produceAction;
     this.produceAction = undefined;
     let head;
+    let maxIter = 200;
     do {
       // console.log(this._actionQueue);
       head = this.head;
@@ -188,7 +216,8 @@ class Producer {
         continue;
       }
       dt = head.evaluate(dt);
-    } while (dt > 0 || head.finished);
+    } while ((dt > 0 || head.finished) && --maxIter);
+    if (maxIter == 0) throw new Error('max iters');
     return dt;
   }
 
