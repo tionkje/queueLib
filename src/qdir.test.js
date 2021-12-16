@@ -63,7 +63,7 @@ describe('queueus', () => {
     const p = dir.createUnpausedProducer();
     let locked = true;
     let done = false;
-    p.enqueueLockAction(() => locked);
+    p.enqueueLockAction(() => !locked);
     p.enqueueWaitAction(1, () => (done = true));
     dir.evaluate(1);
     expect(done).toBe(false);
@@ -77,7 +77,7 @@ describe('queueus', () => {
     let locked = true,
       done = false;
     p.enqueueAction('CompoundAction', [
-      p._createAction('LockAction', () => locked),
+      p._createAction('LockAction', () => !locked),
       p._createAction('WaitAction', 1, () => (done = true))
     ]);
     dir.evaluate(10);
@@ -90,7 +90,7 @@ describe('queueus', () => {
   it('preproduce action', () => {
     const p = dir.createUnpausedProducer();
     let locked = true;
-    p.enqueueAction('PredProduceAction', () => locked, 1);
+    p.enqueueAction('PredProduceAction', () => !locked, 1);
     dir.evaluate(2);
     expect(dir.producers.filter((p) => !p._paused).length).toBe(1);
     locked = false;

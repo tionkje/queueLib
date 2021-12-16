@@ -28,6 +28,9 @@ class Action {
   get type() {
     throw new Error('Not implemented');
   }
+  get progress() {
+    throw new Error('Not implemented');
+  }
 
   evaluate() {
     throw new Error('Not implemented');
@@ -67,6 +70,9 @@ class LockAction extends Action {
   get locked() {
     return this._predicate();
   }
+  get progress() {
+    return this._predicate() ? 1 : 0;
+  }
   get type() {
     return 'LockAction';
   }
@@ -78,15 +84,17 @@ class LockAction extends Action {
     if (this._finished) return dt;
     if (!this._started) this.emit('start');
     this._started = true;
-    if (this._predicate()) return 0;
+    if (!this._predicate()) return 0;
+    if (!this._finished) this.emit('unlock');
     this._finished = true;
     return dt;
   }
   toJSON() {
-    throw new Error('Not Implemented');
+    const result = super.toJSON();
+    return result;
   }
   revive() {
-    throw new Error('Not Implemented');
+    super.revive(src);
   }
 }
 
@@ -100,6 +108,9 @@ class WaitAction extends Action {
   }
   get totalTime() {
     return this._totalTime;
+  }
+  get progress() {
+    return this._time / this._totalTime;
   }
   get type() {
     return 'WaitAction';
@@ -179,6 +190,9 @@ class CompoundAction extends Action {
   get actions() {
     return this._actions.slice();
   }
+  get progress() {
+    return this._actions[0]?.progress || 0;
+  }
   get type() {
     return 'CompoundAction';
   }
@@ -196,10 +210,11 @@ class CompoundAction extends Action {
   }
 
   toJSON() {
-    throw new Error('Not Implemented');
+    const result = super.toJSON();
+    return result;
   }
   revive() {
-    throw new Error('Not Implemented');
+    super.revive(src);
   }
 }
 
@@ -237,6 +252,9 @@ class Producer {
   enqueueLockAction(pred) {
     return this.enqueueAction('LockAction', pred);
   }
+  enqueuePredProduceAction(pred, time) {
+    return this.enqueueAction('PredProduceAction', pred, time);
+  }
 
   _createAction(type, ...args) {
     switch (type) {
@@ -250,13 +268,14 @@ class Producer {
         return new CompoundAction(this, ...args);
       case 'PredProduceAction':
         const [pred, time] = args;
-        return new CompoundAction(this, [
+        const a = new CompoundAction(this, [
           new LockAction(this, pred),
           new ProduceAction(this, time, this._dir.createProducer())
         ]);
-      default:
-        throw new Error(`Unknown type ${type}`);
+        a.producing = a.actions[1].producing;
+        return a;
     }
+    throw new Error(`Unknown type ${type}`);
   }
   enqueueAction(type, ...args) {
     const a = this._createAction(type, ...args);
