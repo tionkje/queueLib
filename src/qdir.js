@@ -10,6 +10,7 @@ class Action {
   _finished = false;
   _started = false;
   _producer;
+  _listeners = {};
 
   constructor(producer) {
     this._producer = producer;
@@ -30,6 +31,20 @@ class Action {
 
   evaluate() {
     throw new Error('Not implemented');
+  }
+
+  on(event, listener) {
+    const listeners = (this._listeners[event] = this._listeners[event] || []);
+    listeners.push(listener);
+
+    return () => {
+      const idx = listeners.indexOf(listener);
+      if (idx < 0) throw new Error('Removing non existent listener');
+      listeners.splice(idx, 1);
+    };
+  }
+  emit(event, data = {}) {
+    (this._listeners[event] || []).forEach((f) => f(data));
   }
 
   toJSON() {
@@ -58,6 +73,7 @@ class LockAction extends Action {
   }
   evaluate(dt) {
     if (this._finished) return dt;
+    if (!this._started) this.emit('start');
     this._started = true;
     if (this._predicate()) return 0;
     this._finished = true;
@@ -95,6 +111,7 @@ class WaitAction extends Action {
 
   evaluate(dt) {
     if (this._finished) return dt;
+    if (!this._started) this.emit('start');
     this._started = true;
     if (this._time > dt) {
       this._time -= dt;
@@ -136,6 +153,10 @@ class ProduceAction extends WaitAction {
     });
     this._producing = producing;
     this._producing.produceAction = this;
+    this.on('cancel', () => {
+      if (this._finished) return;
+      producing._dir.removeProducer(producing);
+    });
   }
 
   toJSON() {
@@ -245,11 +266,14 @@ class Producer {
     this._actionQueue.push(a);
   }
 
+  cancelActions() {
+    this.actionQueue.forEach((a) => this.cancelAction(a));
+  }
   cancelAction(a) {
-    this._dir.removeProducer(a.producing);
     const idx = this._actionQueue.indexOf(a);
     if (idx < 0) return console.error(`Producer.cancelAction: action not found`, p);
     this._actionQueue.splice(idx, 1);
+    a.emit('cancel');
   }
 
   evaluate(dt) {
@@ -318,7 +342,7 @@ export class Manager {
   }
 
   removeProducer(p) {
-    p.actionQueue.forEach((a) => p.cancelAction(a));
+    p.cancelActions();
     const idx = this._producers.indexOf(p);
     if (idx < 0) return console.error(`Manager.removeProducer: producer not found`, p);
     this._producers.splice(idx, 1);
