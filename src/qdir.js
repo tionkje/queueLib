@@ -44,7 +44,10 @@ class Action {
     };
   }
   emit(event, data = {}) {
-    (this._listeners[event] || []).forEach((f) => f(data));
+    // delay with microtask to not change array sizes while iterating
+    Promise.resolve().then(() => {
+      (this._listeners[event] || []).forEach((f) => f(data));
+    });
   }
 
   toJSON() {
