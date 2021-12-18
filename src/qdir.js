@@ -25,7 +25,7 @@ class Action {
   get started() {
     return this._started;
   }
-  get type() {
+  get actionType() {
     throw new Error('Not implemented');
   }
   get progress() {
@@ -55,7 +55,7 @@ class Action {
 
   toJSON() {
     const result = Object.assign({}, this);
-    result.type = this.type;
+    result.actionType = this.actionType;
     delete result._producer;
     return result;
   }
@@ -73,7 +73,7 @@ class LockAction extends Action {
   get progress() {
     return this._predicate() ? 1 : 0;
   }
-  get type() {
+  get actionType() {
     return 'LockAction';
   }
   constructor(producer, pred) {
@@ -112,7 +112,7 @@ class WaitAction extends Action {
   get progress() {
     return this._time / this._totalTime;
   }
-  get type() {
+  get actionType() {
     return 'WaitAction';
   }
 
@@ -156,7 +156,7 @@ class ProduceAction extends WaitAction {
   get producing() {
     return this._producing;
   }
-  get type() {
+  get actionType() {
     return 'ProduceAction';
   }
 
@@ -193,12 +193,16 @@ class CompoundAction extends Action {
   get progress() {
     return this._actions[0]?.progress || 0;
   }
-  get type() {
+  get actionType() {
     return 'CompoundAction';
   }
   constructor(producer, actions) {
     super(producer);
     this._actions = actions;
+    this.on('cancel', () => {
+      if (this._finished) return;
+      this._actions.forEach((a) => a.emit('cancel'));
+    });
   }
   evaluate(dt) {
     if (this._finished) return dt;
@@ -256,8 +260,8 @@ class Producer {
     return this.enqueueAction('PredProduceAction', pred, time);
   }
 
-  _createAction(type, ...args) {
-    switch (type) {
+  _createAction(actionType, ...args) {
+    switch (actionType) {
       case 'ProduceAction':
         return new ProduceAction(this, ...args, this._dir.createProducer());
       case 'WaitAction':
@@ -275,10 +279,10 @@ class Producer {
         a.producing = a.actions[1].producing;
         return a;
     }
-    throw new Error(`Unknown type ${type}`);
+    throw new Error(`Unknown actionType ${actionType}`);
   }
-  enqueueAction(type, ...args) {
-    const a = this._createAction(type, ...args);
+  enqueueAction(actionType, ...args) {
+    const a = this._createAction(actionType, ...args);
     this.pushAction(a);
     return a;
   }
@@ -316,7 +320,7 @@ class Producer {
     this._paused = src._paused;
     this._actionQueue = src._actionQueue.map((a) => {
       const producing = this._dir.producers.find((p) => p.id == a._producing);
-      switch (a.type) {
+      switch (a.actionType) {
         case 'ProduceAction':
           const pa = new ProduceAction(this, a._time, producing);
           pa.revive(a);
