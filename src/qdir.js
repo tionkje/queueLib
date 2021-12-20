@@ -259,6 +259,9 @@ class Producer {
   enqueuePredProduceAction(pred, time) {
     return this.enqueueAction('PredProduceAction', pred, time);
   }
+  enqueuePredWaitAction(pred, time, done) {
+    return this.enqueueAction('PredWaitAction', pred, time, done);
+  }
 
   _createAction(actionType, ...args) {
     switch (actionType) {
@@ -270,7 +273,7 @@ class Producer {
         return new LockAction(this, ...args);
       case 'CompoundAction':
         return new CompoundAction(this, ...args);
-      case 'PredProduceAction':
+      case 'PredProduceAction': {
         const [pred, time] = args;
         const a = new CompoundAction(this, [
           new LockAction(this, pred),
@@ -278,6 +281,12 @@ class Producer {
         ]);
         a.producing = a.actions[1].producing;
         return a;
+      }
+      case 'PredWaitAction': {
+        const [pred, time, done] = args;
+        const a = new CompoundAction(this, [new LockAction(this, pred), new WaitAction(this, time, done)]);
+        return a;
+      }
     }
     throw new Error(`Unknown actionType ${actionType}`);
   }
