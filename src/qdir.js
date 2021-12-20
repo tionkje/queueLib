@@ -7,10 +7,18 @@ const assert = (pred, msg = 'Assertion Failed') => {
 };
 
 class Action {
-  _finished = false;
+  __finished = false;
   _started = false;
   _producer;
   _listeners = {};
+
+  get _finished() {
+    return this.__finished;
+  }
+  set _finished(f) {
+    if (!this.__finished && f) this.emit('finish');
+    this.__finished = f;
+  }
 
   constructor(producer) {
     this._producer = producer;
@@ -61,7 +69,7 @@ class Action {
   }
   revive(src) {
     this._started = src._started;
-    this._finished = src._finished;
+    this.__finished = src.__finished;
   }
 }
 
@@ -85,7 +93,6 @@ class LockAction extends Action {
     if (!this._started) this.emit('start');
     this._started = true;
     if (!this._predicate()) return 0;
-    if (!this._finished) this.emit('unlock');
     this._finished = true;
     return dt;
   }
@@ -209,7 +216,9 @@ class CompoundAction extends Action {
     this._started = true;
 
     dt = evaluateActions(dt, this._actions);
-    if (this._actions.length == 0) this._finished = true;
+    if (this._actions.length == 0) {
+      this._finished = true;
+    }
     return dt;
   }
 
