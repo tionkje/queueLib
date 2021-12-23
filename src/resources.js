@@ -19,4 +19,7 @@ export class Resource {
   toJSON() {
     return this.amount;
   }
+  toString() {
+    return this.amount.toString();
+  }
 }
