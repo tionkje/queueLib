@@ -12,7 +12,8 @@
   },
   "scripts": {
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch --verbose",
+    "test:watch": "node --inspect --experimental-vm-modules node_modules/jest/bin/jest.js --watch --verbose",
+    "test:brk": "node --inspect-brk --experimental-vm-modules node_modules/jest/bin/jest.js --verbose",
     "format": "prettier --write .",
     "prepare": "husky install"
   },
