@@ -8,7 +8,7 @@ const assert = (pred, msg = 'Assertion Failed') => {
 
 class Action {
   __finished = false;
-  _started = false;
+  __started = false;
   _producer;
   _listeners = {};
 
@@ -18,6 +18,14 @@ class Action {
   set _finished(f) {
     if (!this.__finished && f) this.emit('finish');
     this.__finished = f;
+  }
+
+  get _started() {
+    return this.__started;
+  }
+  set _started(f) {
+    if (!this.__started && f) this.emit('start');
+    this.__started = f;
   }
 
   constructor(producer) {
@@ -70,6 +78,7 @@ class Action {
   revive(src) {
     this._started = src._started;
     this.__finished = src.__finished;
+    this.__started = src.__started;
   }
 }
 
@@ -90,7 +99,6 @@ class LockAction extends Action {
   }
   evaluate(dt) {
     if (this._finished) return dt;
-    if (!this._started) this.emit('start');
     this._started = true;
     if (!this._predicate()) return 0;
     this._finished = true;
@@ -132,7 +140,6 @@ class WaitAction extends Action {
 
   evaluate(dt) {
     if (this._finished) return dt;
-    if (!this._started) this.emit('start');
     this._started = true;
     if (this._time > dt) {
       this._time -= dt;
