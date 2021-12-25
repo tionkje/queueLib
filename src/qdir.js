@@ -372,6 +372,12 @@ export class Manager {
   get producers() {
     return this._producers.slice().sort((a, b) => a.id - b.id);
   }
+  get pausedProducers() {
+    return this._producers.filter((p) => p._paused).sort((a, b) => a.id - b.id);
+  }
+  get unPausedProducers() {
+    return this._producers.filter((p) => !p._paused).sort((a, b) => a.id - b.id);
+  }
 
   createUnpausedProducer() {
     return this.createProducer(false);
