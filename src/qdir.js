@@ -15,10 +15,6 @@ class Action {
   get _finished() {
     return this.__finished;
   }
-  set _finished(f) {
-    if (!this.__finished && f) this.emit('finish');
-    this.__finished = f;
-  }
 
   get _started() {
     return this.__started;
@@ -47,9 +43,19 @@ class Action {
   get progress() {
     throw new Error('Not implemented');
   }
+  get timeLeft() {
+    throw new Error('Not implemented');
+  }
 
   evaluate() {
     throw new Error('Not implemented');
+  }
+
+  _finish(dt) {
+    if (this.__finished) return dt;
+    this.__finished = true;
+    this.emit('finish');
+    return dt;
   }
 
   on(event, listener) {
@@ -90,6 +96,9 @@ class LockAction extends Action {
   get progress() {
     return this._predicate() ? 1 : 0;
   }
+  get timeLeft() {
+    return this._predicate() ? 0 : Infinity;
+  }
   get actionType() {
     return 'LockAction';
   }
@@ -101,8 +110,7 @@ class LockAction extends Action {
     if (this._finished) return dt;
     this._started = true;
     if (!this._predicate()) return 0;
-    this._finished = true;
-    return dt;
+    return this._finish(dt);
   }
   toJSON() {
     const result = super.toJSON();
@@ -139,7 +147,7 @@ class WaitAction extends Action {
   }
 
   evaluate(dt) {
-    if (this._finished) return dt;
+    if (this._finished || dt === 0) return dt;
     this._started = true;
     if (this._time > dt) {
       this._time -= dt;
@@ -147,12 +155,19 @@ class WaitAction extends Action {
     } else {
       dt -= this._time;
       this._time = 0;
-      this._finished = true;
-      const res = this._onDone(dt);
-      if (typeof res == 'number') dt = res;
+      return this._finish(dt);
     }
     return dt;
   }
+
+  _finish(dt) {
+    dt = super._finish(dt);
+    if (!this._onDone) return dt;
+    const res = this._onDone(dt);
+    if (typeof res == 'number') dt = res;
+    return dt;
+  }
+
   toJSON() {
     const result = super.toJSON();
     return result;
@@ -207,6 +222,9 @@ class CompoundAction extends Action {
   get progress() {
     return this._actions[0]?.progress || 0;
   }
+  get timeLeft() {
+    return this.actions[0]?.timeLeft || Infinity;
+  }
   get actionType() {
     return 'CompoundAction';
   }
@@ -223,8 +241,9 @@ class CompoundAction extends Action {
     this._started = true;
 
     dt = evaluateActions(dt, this._actions);
+
     if (this._actions.length == 0) {
-      this._finished = true;
+      return this._finish(dt);
     }
     return dt;
   }
@@ -279,6 +298,11 @@ class Producer {
     return this.enqueueAction('PredWaitAction', pred, time, done);
   }
 
+  enqueueAction(actionType, ...args) {
+    const a = this._createAction(actionType, ...args);
+    this.pushAction(a);
+    return a;
+  }
   _createAction(actionType, ...args) {
     switch (actionType) {
       case 'ProduceAction':
@@ -305,11 +329,6 @@ class Producer {
       }
     }
     throw new Error(`Unknown actionType ${actionType}`);
-  }
-  enqueueAction(actionType, ...args) {
-    const a = this._createAction(actionType, ...args);
-    this.pushAction(a);
-    return a;
   }
 
   pushAction(a) {
@@ -406,13 +425,28 @@ export class Manager {
   }
 
   evaluate(dt) {
-    this._producers.sort((a, b) => {
-      if (!!b._paused != !!a._paused) return !!b.paused - !!a._paused;
-      if (!!a._actionQueue[0] != !!b._actionQueue[0]) return !!a._actionQueue[0] - !!b._actionQueue[0];
-      if (!a._actionQueue[0] && !b._actionQueue[0]) return 0;
-      return a._actionQueue[0]._time - b._actionQueue[0]._time;
-    });
-    this._producers.forEach((p) => p.evaluate(dt));
+    do {
+      var first = this._producers.sort((a, b) => {
+        if (!a.head) return 1;
+        if (!b.head) return -1;
+        return a.head.timeLeft - b.head.timeLeft;
+      })[0];
+      var timeLeft = first?.head?.timeLeft || dt;
+      var passDt = Math.min(dt, timeLeft);
+      dt -= passDt;
+      this._producers.sort((a, b) => {
+        if (!!b._paused != !!a._paused) return !!b.paused - !!a._paused;
+        if (!a.head) return -1;
+        if (!b.head) return 1;
+        return b.head.timeLeft - a.head.timeLeft;
+        // if(isFinite(a.head.timeLeft) == isFinite(b.head.timeLeft) && isFinite(a.head.timeLeft)) return a.head.timeLeft - b.head.timeLeft;
+        if (!!b._paused != !!a._paused) return !!b.paused - !!a._paused;
+        if (!!a._actionQueue[0] != !!b._actionQueue[0]) return !!a._actionQueue[0] - !!b._actionQueue[0];
+        if (!a._actionQueue[0] && !b._actionQueue[0]) return 0;
+        return a._actionQueue[0].timeLeft - b._actionQueue[0].timeLeft;
+      });
+      this._producers.forEach((p) => p.evaluate(passDt));
+    } while (dt > 0);
   }
 
   toJSON() {

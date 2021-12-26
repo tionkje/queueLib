@@ -52,27 +52,27 @@ describe('queueus', () => {
     });
   });
 
-  it('can serialise', () => {
+  it('can serialise', async () => {
     createQueueChain(dir, 3);
-    dir.evaluate(1.5);
+    await dir.evaluate(1.5);
     const copy = Manager.revive(JSON.parse(JSON.stringify(dir)));
     expect(JSON.stringify(copy, 0, 2)).toStrictEqual(JSON.stringify(dir, 0, 2));
   });
 
-  it('has lockaction', () => {
+  it('has lockaction', async () => {
     const p = dir.createUnpausedProducer();
     let locked = true;
     let done = false;
     p.enqueueLockAction(() => !locked);
     p.enqueueWaitAction(1, () => (done = true));
-    dir.evaluate(1);
+    await dir.evaluate(1);
     expect(done).toBe(false);
     locked = false;
-    dir.evaluate(1);
+    await dir.evaluate(1);
     expect(done).toBe(true);
   });
 
-  it('has compound actions', () => {
+  it('has compound actions', async () => {
     const p = dir.createUnpausedProducer();
     let locked = true,
       done = false;
@@ -80,21 +80,41 @@ describe('queueus', () => {
       p._createAction('LockAction', () => !locked),
       p._createAction('WaitAction', 1, () => (done = true))
     ]);
-    dir.evaluate(10);
+    await dir.evaluate(10);
     expect(done).toBe(false);
     locked = false;
-    dir.evaluate(2);
+    await dir.evaluate(2);
     expect(done).toBe(true);
   });
 
-  it('preproduce action', () => {
+  it('predProduce action', async () => {
     const p = dir.createUnpausedProducer();
     let locked = true;
     p.enqueueAction('PredProduceAction', () => !locked, 1);
-    dir.evaluate(2);
+    await dir.evaluate(2);
     expect(dir.producers.filter((p) => !p._paused).length).toBe(1);
     locked = false;
-    dir.evaluate(2);
+    await dir.evaluate(2);
     expect(dir.producers.filter((p) => !p._paused).length).toBe(2);
+  });
+
+  describe('single evaluate', () => {
+    it('continues next action in the same evaluate', () => {
+      const p = dir.createUnpausedProducer();
+      p.enqueueWaitAction(1);
+      p.enqueueWaitAction(1);
+      dir.evaluate(1.5);
+      expect(p.head.timeLeft).toBe(0.5);
+    });
+
+    it('unlocks and evaluates in same eval', () => {
+      const p1 = dir.createUnpausedProducer();
+      const p2 = dir.createUnpausedProducer();
+      let locked = true;
+      p1.enqueueWaitAction(1, () => (locked = false));
+      p2.enqueuePredWaitAction(() => !locked, 1);
+      dir.evaluate(1.5);
+      expect(p2.head.actions[0].timeLeft).toBe(0.5);
+    });
   });
 });
