@@ -147,7 +147,7 @@ class WaitAction extends Action {
   }
 
   evaluate(dt) {
-    if (this._finished || dt === 0) return dt;
+    if (this._finished) return dt;
     this._started = true;
     if (this._time > dt) {
       this._time -= dt;
@@ -291,8 +291,8 @@ class Producer {
   enqueueLockAction(pred) {
     return this.enqueueAction('LockAction', pred);
   }
-  enqueuePredProduceAction(pred, time) {
-    return this.enqueueAction('PredProduceAction', pred, time);
+  enqueuePredProduceAction(pred, time, postPred) {
+    return this.enqueueAction('PredProduceAction', pred, time, postPred);
   }
   enqueuePredWaitAction(pred, time, done) {
     return this.enqueueAction('PredWaitAction', pred, time, done);
@@ -314,12 +314,14 @@ class Producer {
       case 'CompoundAction':
         return new CompoundAction(this, ...args);
       case 'PredProduceAction': {
-        const [pred, time] = args;
+        const [prePred, time, postPred = () => true] = args;
         const a = new CompoundAction(this, [
-          new LockAction(this, pred),
-          new ProduceAction(this, time, this._dir.createProducer())
+          new LockAction(this, prePred),
+          new WaitAction(this, time),
+          new LockAction(this, postPred),
+          new ProduceAction(this, 0, this._dir.createProducer())
         ]);
-        a.producing = a.actions[1].producing;
+        a.producing = a.actions[3].producing;
         return a;
       }
       case 'PredWaitAction': {
