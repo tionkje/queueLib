@@ -7,6 +7,7 @@ export class Resource {
   constructor(init) {
     this._gathered = init || 0;
   }
+
   gather(amount) {
     this._gathered += amount;
   }
@@ -16,6 +17,7 @@ export class Resource {
   spend(amount) {
     this._spent += amount;
   }
+
   toJSON() {
     return this.amount;
   }

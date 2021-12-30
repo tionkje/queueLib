@@ -10,4 +10,8 @@ export class TechTree {
     const _avail = Object.assign({ [name]: true }, ...args);
     return Object.keys(this.tree).filter((k) => this.tree[k].reqs.every((name) => _avail[name]));
   }
+  getRequiredBy(name, ...args) {
+    const _avail = Object.assign({ [name]: true }, ...args);
+    return Object.keys(this.tree).filter((k) => Object.keys(_avail).every((n) => this.tree[k].reqs.includes(n)));
+  }
 }
